@@ -1,208 +1,105 @@
-# ChamCong PWA - Employee Application
-
-ChamCong PWA is a modern, high-performance Progressive Web Application (PWA) designed for field employees to perform secure check-in/check-out transactions at assigned work locations using camera capture, facial quality metrics verification, GPS positioning signals accuracy verification, and device-bound biometric verification (WebAuthn).
-
----
-
-## 1. Architecture
-
-The application is built as a single-page client application running entirely inside the user's browser, structured using state-of-the-art React patterns:
-
-```mermaid
-graph TD
-    UI[React Components & Pages] --> Hooks[Custom Reusable Hooks]
-    Hooks --> Stores[Zustand State Stores]
-    Stores --> Services[API & Service Wrappers]
-    Services --> Interceptor[Axios Client with Token Refresh & Fingerprint]
-    Interceptor --> Backend[Express Server REST APIs]
-    
-    Offline[Offline Banner & Status Detector] --> Dexie[(Dexie IndexedDB Database)]
-    Dexie --> Queue[Attendance Queue]
-    Queue --> Sync[Sync Center & Background Sync Retry Task]
-```
-
-### Key Architectural Flow Diagrams:
-
-#### A. Attendance Flow
-```mermaid
-sequenceDiagram
-    participant Employee
-    participant Frontend
-    participant Geolocation
-    participant Camera
-    participant WebAuthn
-    participant Backend
-
-    Employee->>Frontend: Click Check-in / Check-out
-    Frontend->>Geolocation: Request GPS position & check accuracy
-    Geolocation-->>Frontend: Return coordinates (Lat/Long/Accuracy)
-    Frontend->>Camera: Activate webcam stream
-    Frontend->>Camera: Capture photo & run quality checks (brightness, blur)
-    Camera-->>Frontend: Photo verified (passed metrics)
-    Frontend->>WebAuthn: Request WebAuthn signature (if required)
-    WebAuthn-->>Frontend: Return signed assertion
-    Frontend->>Backend: Send multipart FormData (photo, embedding, GPS, clientRequestId, deviceAuth)
-    Backend-->>Frontend: Check-in response (Success / Failed)
-```
-
-#### B. Offline Synchronization Flow
-```mermaid
-sequenceDiagram
-    participant Frontend
-    participant IndexedDB
-    participant SyncCenter
-    participant Backend
-
-    Note over Frontend: Network goes OFFLINE
-    Frontend->>IndexedDB: Queue check-in payload (with base64 photo)
-    Note over Frontend: Network transitions to ONLINE
-    Frontend->>SyncCenter: Trigger sync queue task
-    SyncCenter->>IndexedDB: Fetch next queued check-in item
-    SyncCenter->>Backend: Post check-in FormData
-    alt Success
-        Backend-->>SyncCenter: Success code (200)
-        SyncCenter->>IndexedDB: Delete item from queue
-        SyncCenter->>Frontend: Refresh attendance log & today's state
-    else Failed (Server unavailable / Network drop)
-        Backend-->>SyncCenter: Error / Connection Timeout
-        SyncCenter->>IndexedDB: Increment retryCount & update error logs
-    end
-```
+# 📱 ỨNG DỤNG CHẤM CÔNG NHÂN VIÊN HIỆN TRƯỜNG (EMPLOYEE PWA APP)
+> **Ứng dụng di động PWA (Progressive Web App)** dành cho Nhân viên Kỹ thuật thực hiện Check-in / Check-out hằng ngày bằng Camera Quét mặt AI & Định vị GPS tự động.
 
 ---
 
-## 2. Technology Stack
+## 📌 1. Tổng Quan Về App Nhân Viên
 
-* **Core Framework**: React 19, Vite 5
-* **Routing**: React Router DOM 7
-* **State Management**: Zustand
-* **Form Validation**: React Hook Form, Zod
-* **Offline Storage**: Dexie (IndexedDB Wrapper)
-* **API Client**: Axios (with silent access token refresh, device fingerprint header)
-* **Styling**: Modern Custom CSS variables and layout helper classes (Application-Control compliant)
-* **Icon Set**: React Icons (Remix Icons package)
-* **Utility Libraries**: Day.js
+`CHAMCONG_APP` là ứng dụng Web PWA được thiết kế tối ưu cho trải nghiệm trên màn hình thiết bị di động (Smartphones, Tablets). Nhân viên kỹ thuật đi làm ngoài hiện trường chỉ cần mở ứng dụng trên điện thoại để thực hiện chấm công mà không cần cài đặt qua App Store hay Google Play.
+
+### 🌟 Các Chức Năng Chính Của Nhân Viên:
+1. **📸 Check-in / Check-out Bằng AI & GPS**: Bật Camera tự động nhận diện khuôn mặt chính chủ và kiểm tra tọa độ GPS xem có nằm trong bán kính cho phép của công trình/văn phòng hay không.
+2. **📶 Chấm Công Ngoại Tuyến (Offline Sync)**: Khi làm việc tại công trình mất mạng/mất sóng, ứng dụng vẫn cho phép chụp ảnh xác thực và lưu tạm vào CSDL bộ nhớ điện thoại (**IndexedDB**). Ngay khi có mạng trở lại, ứng dụng sẽ tự động đồng bộ bản ghi lên Server.
+3. **📅 Xem Ca & Lịch Phân Công Hôm Nay**: Hiển thị địa điểm làm việc, bản đồ geofence và ca làm việc được giao trong ngày.
+4. **📊 Thống Kê Công Cá Nhân**: Theo dõi số giờ công đã tích lũy trong tháng, số ca làm đúng giờ, số lần đi trễ/về sớm và trạng thái phê duyệt của Admin.
+5. **📝 Xin Nghỉ Phép & Đăng Ký Tăng Ca (OT)**: Gửi đơn xin nghỉ phép năm, nghỉ bệnh hoặc đăng ký làm thêm giờ trực tiếp trên App.
+6. **🔔 Trung Tâm Thông Báo (Notifications)**: Nhận thông báo tức thì khi đơn xin nghỉ/OT được duyệt, hoặc khi có lịch phân công mới.
 
 ---
 
-## 3. Directory Structure
+## 🛠️ 2. Công Nghệ Sử Dụng
+
+- **Core Library:** ReactJS (React 19)
+- **Routing:** React Router DOM (với Route Guard chốt chặn đăng nhập)
+- **State Management:** Zustand (Quản lý trạng thái Auth, Chấm công, Offline Sync)
+- **Offline Storage:** Dexie.js (Thư viện tương tác IndexedDB lưu trữ dữ liệu ngoại tuyến)
+- **Build Tool & PWA:** Vite 5 + Service Worker (PWA Workbox hỗ trợ chạy độc lập Standalone)
+- **HTTP Client:** Axios Interceptor (Tự động Renew Token, gửi header Vân tay thiết bị `X-Device-Fingerprint`)
+- **Icon Set:** React Icons (Remix Icons)
+
+---
+
+## 📂 3. Cấu Trúc Thư Mục (`/CHAMCONG_APP/src`)
 
 ```text
-c:/Users/ACER/CHAMCONG_APP/
-├── public/                 # Static public files
-│   ├── sw.js               # Service Worker for PWA assets caching
-│   └── favicon.ico
-├── src/
-│   ├── api/
-│   │   └── apiClient.js    # Centralized Axios interceptors
-│   ├── components/
-│   │   └── layout/
-│   │       ├── BottomNavigation.jsx
-│   │       ├── OfflineBanner.jsx
-│   │       └── TopAppBar.jsx
-│   ├── hooks/              # Custom state hook abstraction layer
-│   │   ├── useAuth.js
-│   │   ├── useAssignment.js
-│   │   ├── useAttendance.js
-│   │   ├── useFaceProfile.js
-│   │   ├── useNotification.js
-│   │   ├── useOffline.js
-│   │   └── useProfile.js
-│   ├── indexeddb/
-│   │   └── db.js           # Dexie IndexedDB schemas and tables
-│   ├── layouts/
-│   │   ├── MainLayout.jsx
-│   │   └── RouteGuardLayout.jsx
-│   ├── pages/              # Main page views
-│   │   ├── Assignments.jsx
-│   │   ├── Attendance.jsx
-│   │   ├── Dashboard.jsx
-│   │   ├── Login.jsx
-│   │   ├── Notifications.jsx
-│   │   ├── Profile.jsx
-│   │   ├── Settings.jsx
-│   │   ├── SyncCenter.jsx
-│   │   └── Unauthorized.jsx
-│   ├── routes/
-│   │   └── AppRoutes.jsx   # Client-side router path mappings
-│   ├── services/           # Backend REST API wrappers
-│   │   ├── authService.js
-│   │   ├── assignmentService.js
-│   │   ├── attendanceService.js
-│   │   ├── faceProfileService.js
-│   │   └── profileService.js
-│   ├── store/              # Zustand central state engines
-│   │   ├── authStore.js
-│   │   ├── assignmentStore.js
-│   │   ├── attendanceStore.js
-│   │   ├── faceProfileStore.js
-│   │   ├── notificationStore.js
-│   │   ├── offlineStore.js
-│   │   └── syncStore.js
-│   ├── utils/
-│   │   ├── faceBiometrics.js
-│   │   └── webauthn.js
-│   ├── validators/
-│   │   └── authValidator.js
-│   ├── App.css
-│   ├── App.jsx
-│   ├── index.css           # Global typography & layout engine
-│   └── main.jsx            # Mounting file and PWA registration
-├── vite.config.js          # Vite building config
-├── package.json
-└── README.md
+CHAMCONG_APP/src/
+├── api/              # Axios Client trung tâm (Interceptors xử lý Refresh Token & Fingerprint)
+├── components/       # Component giao diện dùng chung:
+│   ├── layout/       # BottomNavigation (Thanh điều hướng dưới), TopAppBar, OfflineBanner
+│   ├── CustomModal.jsx
+│   ├── FaceAttendanceCamera.jsx   # Camera quét mặt & Liveness check
+│   └── FaceRegisterPage.jsx       # Trang chụp ảnh đăng ký khuôn mặt gốc
+├── hooks/            # Custom Hooks (useAuth, useAttendance, useAssignment, useOffline...)
+├── indexeddb/        # Cấu hình Dexie IndexedDB lưu trữ hàng chờ chấm công Offline
+├── layouts/          # Khung giao diện ứng dụng di động (MainLayout, RouteGuardLayout)
+├── pages/            # Các màn hình chính của ứng dụng:
+│   ├── Dashboard.jsx            # Màn hình chính (Đồng hồ hệ thống, nút Check-in/out, Thống kê)
+│   ├── Attendance.jsx           # Màn hình camera chấm công & Lịch sử cá nhân
+│   ├── AttendanceCameraPage.jsx # Giao diện Camera chụp ảnh toàn màn hình
+│   ├── Assignments.jsx          # Màn hình xem danh sách ca được phân công
+│   ├── LeaveRequests.jsx        # Màn hình gửi & quản lý đơn nghỉ phép
+│   ├── OvertimeRequests.jsx     # Màn hình gửi & quản lý đơn tăng ca (OT)
+│   ├── SyncCenter.jsx           # Màn hình quản lý đồng bộ ngoại tuyến (Offline Sync)
+│   ├── Notifications.jsx        # Màn hình trung tâm thông báo
+│   └── Profile.jsx              # Màn hình hồ sơ cá nhân & đăng ký khuôn mặt
+├── services/         # Tầng kết nối RESTful APIs tới Backend
+├── store/            # Zustand Stores quản lý State (authStore, attendanceStore, syncStore)
+├── utils/            # Tiện ích sinh vân tay WebAuthn, kiểm tra Face Biometrics
+├── App.jsx           # Cấu hình Route chính của ứng dụng
+└── main.jsx          # File điểm khởi chạy & Đăng ký PWA Service Worker
 ```
 
 ---
 
-## 4. Environment Variables
+## 🚀 4. Hướng Dẫn Cài Đặt & Chạy Ứng Dụng
 
-Create a `.env` file at the root of the project with the following configuration:
+### 1. Cài đặt các thư viện
+```bash
+cd CHAMCONG_APP
+npm install
+```
 
+### 2. Cấu hình biến môi trường (`.env`)
+Tạo file `.env` tại thư mục gốc `CHAMCONG_APP`:
 ```env
-# Backend API Base Path
-VITE_API_URL=http://192.168.1.42:3000
-
-# Device configuration
-VITE_DEVICE_ID=pwa-client-id-001
+VITE_API_URL=http://localhost:3000/api
 ```
 
----
+### 3. Chạy ứng dụng ở chế độ Phát Triển (Development)
+```bash
+npm run dev
+```
+Ứng dụng sẽ chạy tại địa chỉ: `http://localhost:5173` (hoặc mở trên điện thoại cùng mạng Wi-Fi bằng IP máy tính).
 
-## 5. Installation & Execution
-
-### Prerequisites
-* **Node.js**: v20.12.0+ (Tested under v20.12.2)
-* **npm**: v10.5.0+
-
-### Setup Commands
-1. **Navigate to workspace**:
-   ```bash
-   cd c:\Users\ACER\CHAMCONG_APP
-   ```
-
-2. **Clean Install dependencies**:
-   ```bash
-   npm install
-   ```
-
-3. **Run Development Server**:
-   ```bash
-   npm run dev
-   ```
-   Open `http://192.168.1.42:5173` in your browser.
-
-4. **Build Production Bundle**:
-   ```bash
-   npm run build
-   ```
-   The compiled static files will be placed inside the `dist/` directory.
+### 4. Đóng gói sản phẩm (Production Build)
+```bash
+npm run build
+```
+Các file tĩnh đã đóng gói sẽ nằm trong thư mục `CHAMCONG_APP/dist/`.
 
 ---
 
-## 6. Deployment Guide
+## 📲 5. Hướng Dẫn Thao Tác Chấm Công Cho Nhân Viên
 
-To deploy the build output:
-1. Compile the production bundle: `npm run build`.
-2. The output directory is `dist/`. You can serve this directory using a static file web server (e.g., Nginx, Apache, or PM2 serve) or deploy it to cloud platforms like Vercel, Netlify, or AWS S3.
-3. Make sure to serve the application over **HTTPS** (WebAuthn, Geolocation, and Camera APIs require a secure context to work in browsers). 192.168.1.42 is exempt from HTTPS requirements for development.
+1. **Đăng nhập**: Sử dụng tài khoản nhân viên do công ty cấp (Ví dụ: `employee01` / `Employee@123`).
+2. **Đăng ký khuôn mặt lần đầu**: Vào mục *Cá nhân* ➔ Chọn *Đăng ký khuôn mặt gốc* và chụp ảnh rõ mặt.
+3. **Thực hiện Check-in**:
+   - Tại Màn hình chính, chọn **Bắt đầu Check-in**.
+   - Cho phép ứng dụng truy cập **Vị trí GPS** và **Camera**.
+   - Đưa khuôn mặt vào khung hình tròn và bấm **Chụp ảnh**.
+   - Nếu GPS hợp lệ và khuôn mặt khớp ➔ Hệ thống báo **Chấm công thành công**.
+
+---
+
+## 🛡️ License & Copyright
+Dự án được bảo hộ quyền sở hữu trí tuệ cho phân hệ ứng dụng chấm công di động.
