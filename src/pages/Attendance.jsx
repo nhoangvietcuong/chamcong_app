@@ -80,6 +80,7 @@ export const Attendance = () => {
   const [pendingEmbedding, setPendingEmbedding] = useState(null);
   const [checkInResult, setCheckInResult] = useState(null);
   const [isNoGpsMode, setIsNoGpsMode] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(false);
 
   // Camera states
   const [cameraFacing, setCameraFacing] = useState('user'); // 'user' | 'environment'
@@ -275,6 +276,7 @@ export const Attendance = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const flowParam = searchParams.get('flow');
+  const otRequestIdParam = searchParams.get('otRequestId');
   const lastTriggeredFlowRef = useRef(null);
   const isStartingFlowRef = useRef(false);
 
@@ -287,11 +289,12 @@ export const Attendance = () => {
     Boolean(successModalData);
 
   useEffect(() => {
-    if (flowParam === 'check-in' || flowParam === 'check-out') {
-      startFlow(flowParam);
+    if (flowParam === 'check-in' || flowParam === 'check-out' || flowParam === 'ot-check-in' || flowParam === 'ot-check-out') {
+      const otId = otRequestIdParam ? parseInt(otRequestIdParam, 10) : null;
+      startFlow(flowParam, otId);
       setSearchParams({}, { replace: true });
     }
-  }, [flowParam]);
+  }, [flowParam, otRequestIdParam]);
 
   // Initialize page data & pre-fetch GPS
   useEffect(() => {
@@ -596,10 +599,15 @@ export const Attendance = () => {
 
   // Start check-in/out process with warning checks
   const startFlow = async (type, otRequestId = null) => {
-    if (isOffline) {
-      triggerOfflineUpload(type);
-      return;
-    }
+    if (isInitializing) return;
+    setIsInitializing(true);
+
+    try {
+      if (isOffline) {
+        triggerOfflineUpload(type);
+        setIsInitializing(false);
+        return;
+      }
 
     const isRetry = activeFlow !== 'idle';
 
@@ -634,6 +642,7 @@ export const Attendance = () => {
 
         if (now.isAfter(scheduledEnd)) {
           alert(`Đã hết ca chấm công. Ca làm việc đã kết thúc lúc ${endTimeStr.substring(0, 5)}. Không thể Check-in.`);
+          setIsInitializing(false);
           return;
         }
       }
@@ -665,6 +674,7 @@ export const Attendance = () => {
         if (diffMinutes > graceMinutes) {
           setEarlyCheckoutModalData({ diffMinutes, endTimeStr, type, otRequestId });
           setShowEarlyCheckoutModal(true);
+          setIsInitializing(false);
           return;
         }
       }
@@ -673,7 +683,7 @@ export const Attendance = () => {
     // Force refresh and verify GPS coordinate before starting flow
     let coords = null;
     try {
-      coords = await initiateGpsFetch({ timeoutMs: 2500, highAccuracy: true, forceRefresh: true });
+      coords = await initiateGpsFetch({ timeoutMs: 5000, highAccuracy: true, forceRefresh: true });
     } catch (err) {
       console.warn("Failed to fetch fresh GPS coords:", err);
     }
@@ -689,10 +699,16 @@ export const Attendance = () => {
       try {
         await apiClient.get(`/health?log=setShowNoGpsWarningModal-set-true-success`);
       } catch (e) { }
+      setIsInitializing(false);
       return;
     }
 
     proceedStartFlow(type, otRequestId, false);
+    setIsInitializing(false);
+  } catch (e) {
+    setIsInitializing(false);
+    throw e;
+  }
   };
 
   // Perform camera initialization & GPS detection on check-in/out
@@ -1623,9 +1639,19 @@ export const Attendance = () => {
   return (
     <>
       <Dashboard
-        onStartCheckIn={() => startFlow('check-in')}
-        onStartCheckOut={() => startFlow('check-out')}
+        onStartCheckIn={(type, otId) => startFlow(type || 'check-in', otId)}
+        onStartCheckOut={(type, otId) => startFlow(type || 'check-out', otId)}
       />
+
+      {isInitializing && (
+        <div className="fixed inset-0 z-[99999] bg-black/60 backdrop-blur-sm flex items-center justify-center pointer-events-auto">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 flex flex-col items-center justify-center max-w-[200px] w-full shadow-2xl animate-fade-in text-center">
+            <div className="w-12 h-12 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin mb-4" />
+            <p className="text-sm font-bold text-slate-800 dark:text-slate-200">Đang khởi tạo...</p>
+          </div>
+        </div>
+      )}
+
       <input
         ref={galleryInputRef}
         type="file"

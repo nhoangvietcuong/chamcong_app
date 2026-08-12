@@ -348,6 +348,54 @@ export const Dashboard = ({ onStartCheckIn, onStartCheckOut }) => {
           </button>
         )}
 
+        {todayState?.otRequests?.map(req => {
+          const elements = [];
+          if (req.canCheckIn) {
+            elements.push(
+              <button
+                key={`ot-in-${req.otRequestId}`}
+                onClick={() => {
+                  if (onStartCheckIn) onStartCheckIn('ot-check-in', req.otRequestId);
+                  else navigate(`/attendance?flow=ot-check-in&otRequestId=${req.otRequestId}`);
+                }}
+                className="w-full py-3.5 font-extrabold flex items-center justify-center gap-2 text-sm transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                style={{
+                  backgroundColor: '#4338CA',
+                  color: '#FFFFFF',
+                  borderRadius: '14px',
+                  boxShadow: '0 10px 25px rgba(67, 56, 202, 0.25)'
+                }}
+              >
+                <RiArrowRightLine className="text-lg" style={{ color: '#FFFFFF' }} />
+                <span>Bắt đầu Check-in Tăng ca</span>
+              </button>
+            );
+          }
+          if (req.canCheckOut) {
+            elements.push(
+              <button
+                key={`ot-out-${req.otRequestId}`}
+                onClick={() => {
+                  if (onStartCheckOut) onStartCheckOut('ot-check-out', req.otRequestId);
+                  else navigate(`/attendance?flow=ot-check-out&otRequestId=${req.otRequestId}`);
+                }}
+                className="w-full py-3.5 font-extrabold flex items-center justify-center gap-2 text-sm transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                style={{
+                  backgroundColor: '#EAB308',
+                  color: '#FFFFFF',
+                  borderRadius: '14px',
+                  boxShadow: '0 10px 25px rgba(234, 179, 8, 0.25)'
+                }}
+              >
+                <RiArrowRightLine className="text-lg" style={{ color: '#FFFFFF' }} />
+                <span>Bắt đầu Check-out Tăng ca</span>
+              </button>
+            );
+          }
+          return elements;
+        })}
+
+
         {!todayState?.actions?.canCheckIn && !todayState?.actions?.canCheckOut && todayState?.attendance && (
           (() => {
             const reviewStatus = todayState.attendance.reviewStatus || todayState.attendance.review_status;
