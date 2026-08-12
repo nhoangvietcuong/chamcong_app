@@ -12,44 +12,44 @@ export const NotificationPromptModal = () => {
   );
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !('Notification' in window)) {
+    if (typeof window === 'undefined') {
       return;
     }
 
-    const permission = Notification.permission;
+    const hasNotification = 'Notification' in window;
+    const permission = hasNotification ? Notification.permission : 'unsupported';
     setPermissionState(permission);
+
+    // Detect iOS & Standalone Mode
+    const userAgent = window.navigator.userAgent || '';
+    const isIos = /iPad|iPhone|iPod/.test(userAgent) && !window.MSStream;
+    const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
 
     // If permission is already granted, silently ensure backend push subscription is active
     if (permission === 'granted') {
       subscribe({ silent: true });
+      setIsVisible(false);
       return;
     }
-
-    // Check if user previously dismissed prompt in this session
-    const isDismissed = sessionStorage.getItem('chamcong_notification_prompt_dismissed');
-    if (isDismissed) {
-      return;
-    }
-
-    // Detect iOS & Standalone Mode
-    const userAgent = window.navigator.userAgent;
-    const isIos = /iPad|iPhone|iPod/.test(userAgent) && !window.MSStream;
-    const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
 
     if (isIos && !isStandalone) {
       setIsIosSafari(true);
       setIsVisible(true);
-    } else if (permission === 'default') {
+    } else if (permission !== 'granted') {
       setIsIosSafari(false);
       setIsVisible(true);
     }
   }, [subscribe]);
 
   const handleEnableNotifications = async () => {
-    const success = await subscribe({ silent: true });
-    if (success || (typeof window !== 'undefined' && window.Notification && Notification.permission === 'granted')) {
-      setPermissionState('granted');
+    const success = await subscribe({ silent: false });
+    const currentPermission = typeof window !== 'undefined' && window.Notification ? Notification.permission : 'unsupported';
+    setPermissionState(currentPermission);
+
+    if (success || currentPermission === 'granted') {
       setIsSuccessState(true);
+    } else if (currentPermission === 'denied') {
+      alert('Quyền gửi thông báo đang bị TẮT trên trình duyệt của bạn. Vui lòng bấm vào biểu tượng Khóa 🔒 trên thanh địa chỉ trình duyệt -> Chọn "Cho phép Thông báo" (Allow Notifications).');
     }
   };
 
@@ -58,7 +58,7 @@ export const NotificationPromptModal = () => {
     setIsVisible(false);
   };
 
-  if (!isVisible || (permissionState === 'granted' && !isSuccessState) || permissionState === 'denied') {
+  if (!isVisible || (permissionState === 'granted' && !isSuccessState)) {
     return null;
   }
 

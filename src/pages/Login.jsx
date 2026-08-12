@@ -16,6 +16,7 @@ import {
 } from 'react-icons/ri';
 
 import ForgotPasswordModal from '../components/ForgotPasswordModal';
+import NotificationPromptModal from '../components/NotificationPromptModal';
 
 export const Login = () => {
   const { login, isAuthenticated, isLoading, error: authError } = useAuth();
@@ -190,6 +191,9 @@ export const Login = () => {
       </div>
 
 
+
+      {/* Notification Permission Modal Prompt */}
+      <NotificationPromptModal />
 
       {/* Forgot Password Modal */}
       {showForgotPassword && (

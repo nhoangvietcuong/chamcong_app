@@ -312,7 +312,10 @@ export const Dashboard = ({ onStartCheckIn, onStartCheckOut }) => {
         {/* Spec #11: Check-in Primary Button */}
         {todayState?.actions?.canCheckIn && (
           <button
-            onClick={() => navigate('/attendance?flow=check-in')}
+            onClick={() => {
+              if (onStartCheckIn) onStartCheckIn();
+              else navigate('/attendance?flow=check-in');
+            }}
             className="w-full py-3.5 font-extrabold flex items-center justify-center gap-2 text-sm transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
             style={{
               backgroundColor: '#22C55E',
@@ -328,13 +331,16 @@ export const Dashboard = ({ onStartCheckIn, onStartCheckOut }) => {
 
         {todayState?.actions?.canCheckOut && (
           <button
-            onClick={() => navigate('/attendance?flow=check-out')}
+            onClick={() => {
+              if (onStartCheckOut) onStartCheckOut();
+              else navigate('/attendance?flow=check-out');
+            }}
             className="w-full py-3.5 font-extrabold flex items-center justify-center gap-2 text-sm transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
             style={{
-              backgroundColor: '#22C55E',
+              backgroundColor: '#F59E0B',
               color: '#FFFFFF',
               borderRadius: '14px',
-              boxShadow: '0 10px 25px rgba(34, 197, 94, 0.25)'
+              boxShadow: '0 10px 25px rgba(245, 158, 11, 0.25)'
             }}
           >
             <RiArrowRightLine className="text-lg" style={{ color: '#FFFFFF' }} />

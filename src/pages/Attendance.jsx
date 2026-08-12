@@ -514,9 +514,9 @@ export const Attendance = () => {
   // Production GPS Fetcher with State Machine & Promise Locking
   // Production GPS Fetcher with State Machine & Promise Locking
   const initiateGpsFetch = (options = {}) => {
-    const { timeoutMs = 4000, highAccuracy = true } = options;
+    const { timeoutMs = 4000, highAccuracy = true, forceRefresh = false } = options;
 
-    if (gpsState === 'GPS_READY' && gpsCoords) {
+    if (!forceRefresh && gpsState === 'GPS_READY' && gpsCoords) {
       return Promise.resolve(gpsCoords);
     }
 
@@ -526,8 +526,12 @@ export const Attendance = () => {
       return Promise.resolve(null);
     }
 
+    if (forceRefresh) {
+      gpsPromiseRef.current = null;
+    }
+
     let fetchPromise = gpsPromiseRef.current;
-    if (!fetchPromise || gpsState !== 'FETCHING_GPS') {
+    if (!fetchPromise || gpsState !== 'FETCHING_GPS' || forceRefresh) {
       setGpsState('FETCHING_GPS');
       setFlowStatusText('Đang xác định vị trí GPS...');
 
@@ -664,6 +668,28 @@ export const Attendance = () => {
           return;
         }
       }
+    }
+
+    // Force refresh and verify GPS coordinate before starting flow
+    let coords = null;
+    try {
+      coords = await initiateGpsFetch({ timeoutMs: 2500, highAccuracy: true, forceRefresh: true });
+    } catch (err) {
+      console.warn("Failed to fetch fresh GPS coords:", err);
+    }
+
+    // Diagnostic logging to backend
+    try {
+      await apiClient.get(`/health?log=startFlow-check-in-coords-${coords ? 'ok' : 'null'}-gpsState-${gpsState}-gpsCoords-${gpsCoords ? 'ok' : 'null'}-showModal-${showNoGpsWarningModal ? 'ok' : 'null'}`);
+    } catch (e) { }
+
+    if (!coords) {
+      setPendingFlowParams({ type, otRequestId });
+      setShowNoGpsWarningModal(true);
+      try {
+        await apiClient.get(`/health?log=setShowNoGpsWarningModal-set-true-success`);
+      } catch (e) { }
+      return;
     }
 
     proceedStartFlow(type, otRequestId, false);
@@ -1486,28 +1512,111 @@ export const Attendance = () => {
   // Render standalone camera screen when activeFlow is active
   if (activeFlow !== 'idle') {
     return (
-      <AttendanceCameraPage
-        activeFlow={activeFlow}
-        flowStep={flowStep}
-        flowStatusText={flowStatusText}
-        flowError={flowError}
-        cameraFacing={cameraFacing}
-        capturedPhoto={capturedPhoto}
-        toggleCamera={toggleCamera}
-        handleCapture={handleCapture}
-        handleCaptureEvidence={handleCaptureEvidence}
-        handleRetakeEvidence={handleRetakeEvidence}
-        handleConfirmAttendance={handleConfirmAttendance}
-        closeFlow={closeFlow}
-        startFlow={startFlow}
-        videoRef={videoRef}
-        canvasRef={canvasRef}
-        faceOverlayState={faceOverlayState}
-        checkInResult={checkInResult}
-        showFaceFailModal={showFaceFailModal}
-        faceFailModalData={faceFailModalData}
-        onConfirmFailModal={handleConfirmFailModal}
-      />
+      <>
+        <AttendanceCameraPage
+          activeFlow={activeFlow}
+          flowStep={flowStep}
+          flowStatusText={flowStatusText}
+          flowError={flowError}
+          cameraFacing={cameraFacing}
+          capturedPhoto={capturedPhoto}
+          toggleCamera={toggleCamera}
+          handleCapture={handleCapture}
+          handleCaptureEvidence={handleCaptureEvidence}
+          handleRetakeEvidence={handleRetakeEvidence}
+          handleConfirmAttendance={handleConfirmAttendance}
+          closeFlow={closeFlow}
+          startFlow={startFlow}
+          videoRef={videoRef}
+          canvasRef={canvasRef}
+          faceOverlayState={faceOverlayState}
+          checkInResult={checkInResult}
+          showFaceFailModal={showFaceFailModal}
+          faceFailModalData={faceFailModalData}
+          onConfirmFailModal={handleConfirmFailModal}
+        />
+        {showNoGpsWarningModal && (
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in pointer-events-auto">
+            <div className="bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-900/40 rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-4 text-left animate-slide-up">
+              <div className="flex items-center gap-3 border-b border-amber-100 dark:border-amber-900/30 pb-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400 text-xl font-bold flex-shrink-0">
+                  ⚠️
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 leading-tight">
+                    Không lấy được GPS
+                  </h3>
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400 font-semibold mt-0.5">
+                    Cảnh báo tín hiệu vị trí
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3 text-xs text-slate-700 dark:text-slate-300">
+                <p className="font-semibold text-slate-800 dark:text-slate-200">
+                  Lượt chấm công này vẫn có thể thực hiện.
+                </p>
+
+                <div className="p-3 bg-amber-50/80 dark:bg-amber-950/30 rounded-2xl border border-amber-200/80 dark:border-amber-900/40 space-y-2">
+                  <p className="font-bold text-amber-900 dark:text-amber-300 text-[11px] uppercase tracking-wider">
+                    Tuy nhiên hệ thống sẽ:
+                  </p>
+                  <ul className="space-y-1.5 font-medium text-slate-800 dark:text-slate-200">
+                    <li className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-bold">
+                      <span>✓</span> Chụp ảnh xác thực
+                    </li>
+                    <li className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-bold">
+                      <span>✓</span> Gửi Admin duyệt
+                    </li>
+                    <li className="flex items-center gap-2 text-red-600 dark:text-red-400 font-bold">
+                      <span>✓</span> Không tự động tính công
+                    </li>
+                  </ul>
+                </div>
+
+                <p className="font-bold text-slate-900 dark:text-slate-100 text-center pt-1 text-xs">
+                  Bạn có muốn tiếp tục?
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setShowNoGpsWarningModal(false);
+                    setFlowStatusText('Đang thử kết nối lại GPS...');
+                    const pos = await initiateGpsFetch({ timeoutMs: 15000, highAccuracy: true });
+                    if (pos && pendingFlowParams) {
+                      setIsNoGpsMode(false);
+                      proceedStartFlow(pendingFlowParams.type, pendingFlowParams.otRequestId);
+                    } else if (!pos && pendingFlowParams) {
+                      setShowNoGpsWarningModal(true); // Hiển thị lại nếu vẫn thất bại
+                    }
+                  }}
+                  className="flex-1 py-3 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 text-xs font-bold transition-colors cursor-pointer text-center"
+                >
+                  🔄 Thử lại GPS
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowNoGpsWarningModal(false);
+                    setIsNoGpsMode(true);
+                    if (pendingFlowParams) {
+                      proceedStartFlow(pendingFlowParams.type, pendingFlowParams.otRequestId, true);
+                    }
+                  }}
+                  className="flex-1 py-3 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold shadow-sm transition-colors cursor-pointer text-center"
+                >
+                  📸 Tiếp tục chấm công
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+      </>
     );
   }
 
@@ -1521,7 +1630,7 @@ export const Attendance = () => {
         ref={galleryInputRef}
         type="file"
         accept="image/*"
-        style={{ display: 'none' }}
+        style={{ position: 'absolute', width: '1px', height: '1px', padding: 0, margin: '-1px', overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0 }}
         onChange={handleGalleryFileSelect}
       />
       {showEarlyCheckoutModal && earlyCheckoutModalData && (
@@ -1736,8 +1845,7 @@ export const Attendance = () => {
         ref={galleryInputRef}
         type="file"
         accept="image/*"
-        className="hidden"
-        style={{ display: 'none' }}
+        style={{ position: 'absolute', width: '1px', height: '1px', padding: 0, margin: '-1px', overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0 }}
         onChange={handleGalleryFileSelect}
       />
       {/* Custom Offline Success Popup Modal (Image 2 style) */}
@@ -1860,6 +1968,7 @@ export const Attendance = () => {
           </div>
         </div>
       )}
+
     </>
   );
 };

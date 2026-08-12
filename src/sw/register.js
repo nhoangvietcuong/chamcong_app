@@ -2,7 +2,7 @@ export const registerServiceWorker = () => {
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker
-        .register('/sw.js?v=38')
+        .register('/sw.js?v=39')
         .then((reg) => {
           console.log('Service Worker registered v12:', reg.scope);
           reg.update();
