@@ -7,9 +7,16 @@ export default defineConfig({
     react(),
     tailwindcss()
   ],
+  resolve: {
+    dedupe: ['react', 'react-dom'],
+  },
   server: {
     host: '0.0.0.0',
     port: 5174,
+    strictPort: true,
+    hmr: {
+      clientPort: 5174,
+    },
     allowedHosts: true,
     proxy: {
       '/api': {

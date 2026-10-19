@@ -2,6 +2,18 @@
 <html lang="vi">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      if ('serviceWorker' in navigator && (location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          for (var r of regs) r.unregister();
+        });
+        if ('caches' in window) {
+          caches.keys().then(function(keys) {
+            for (var k of keys) caches.delete(k);
+          });
+        }
+      }
+    </script>
     <link rel="icon" type="image/png" href="/logo chamcong.png" />
     <link rel="manifest" href="/manifest.json" />
     <meta name="apple-mobile-web-app-capable" content="yes" />

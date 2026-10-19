@@ -79,7 +79,7 @@ VITE_API_URL=http://localhost:3000/api
 ```bash
 npm run dev
 ```
-Ứng dụng sẽ chạy tại địa chỉ: `http://localhost:5173` (hoặc mở trên điện thoại cùng mạng Wi-Fi bằng IP máy tính).
+Ứng dụng sẽ chạy tại địa chỉ: `http://localhost:5174` (hoặc mở trên điện thoại cùng mạng Wi-Fi bằng IP máy tính).
 
 ### 4. Đóng gói sản phẩm (Production Build)
 ```bash

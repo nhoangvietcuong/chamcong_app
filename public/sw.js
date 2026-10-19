@@ -41,11 +41,17 @@ self.addEventListener('fetch', (event) => {
   // Only cache GET requests
   if (event.request.method !== 'GET') return;
 
-  // Ignore API endpoints, hot-updates, extensions
+  // Ignore API endpoints, Vite HMR, source modules, and local dev requests
   if (
     event.request.url.startsWith('chrome-extension') || 
     event.request.url.includes('hot-update') ||
-    event.request.url.includes('/api/')
+    event.request.url.includes('/api/') ||
+    event.request.url.includes('/@') ||
+    event.request.url.includes('/src/') ||
+    event.request.url.includes('/node_modules/') ||
+    event.request.url.includes('token=') ||
+    event.request.url.includes('localhost') ||
+    event.request.url.includes('127.0.0.1')
   ) {
     return;
   }
@@ -61,8 +67,16 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         })
-        .catch(() => {
-          return caches.match(event.request).then((cached) => cached || caches.match('/index.html') || caches.match('/'));
+        .catch(async () => {
+          const cached = await caches.match(event.request);
+          if (cached) return cached;
+          const indexHtml = (await caches.match('/index.html')) || (await caches.match('/'));
+          if (indexHtml) return indexHtml;
+          return new Response('Offline', {
+            status: 503,
+            statusText: 'Service Unavailable',
+            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+          });
         })
     );
     return;
@@ -89,11 +103,16 @@ self.addEventListener('fetch', (event) => {
 
           return response;
         })
-        .catch(() => {
+        .catch(async () => {
           // If offline and request is an HTML page, return index
           if (event.request.headers.get('accept') && event.request.headers.get('accept').includes('text/html')) {
-            return caches.match('/index.html');
+            const cachedIndex = (await caches.match('/index.html')) || (await caches.match('/'));
+            if (cachedIndex) return cachedIndex;
           }
+          return new Response('Network error or resource offline', {
+            status: 408,
+            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+          });
         });
     })
   );
